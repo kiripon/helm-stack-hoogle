@@ -24,21 +24,31 @@
 (defgroup helm-stack-hoogle nil
   "Use helm to navigate query results from Hoogle(stack)"
   :group 'helm)
-(defvar helm-stack-hoogle--use-stack t)
+
+(defvar-local helm-stack-hoogle--use-stack t)
 
 ;;;###autoload
 (defun helm-stack-hoogle ()
   (interactive)
   (helm :sources
         (helm-build-sync-source "Hoogle"
+          :init (lambda () (setq helm-stack-hoogle--use-stack (helm-stack-hoogle--stack-hoogle-available-p)))
           :candidates #'helm-stack-hoogle--set-candidates
           :action (helm-make-actions "Open in browser" #'browse-url)
           :volatile t)
         :prompt "Stack Hoogle: "
         :buffer "*Stack Hoogle search*"))
+
+(defun helm-stack-hoogle--stack-hoogle-available-p ()
+  (with-temp-buffer
+    (apply #'call-process "stack" nil t nil (list "hoogle" "--no-setup"))
+    (goto-char (point-min))
+    (not (re-search-forward "No Hoogle database" nil t))))
+
 (defun helm-stack-hoogle--set-candidates ()
   (let ((items (helm-stack-hoogle--get-candidates helm-pattern)))
     (mapcar #'helm-stack-hoogle--to-candidate-item items)))
+
 (defun helm-stack-hoogle--propertize-decl (string)
   (with-temp-buffer
     (let ((flycheck-checkes nil)
@@ -47,6 +57,7 @@
     (insert string)
     (font-lock-ensure)
     (buffer-string)))
+
 (defun helm-stack-hoogle--to-candidate-item (candidate)
   (let ((module (plist-get candidate :module))
         (fundecl (format "%s :: %s"
@@ -54,6 +65,7 @@
                          (plist-get candidate :type))))
     (cons (format "%s %s" module (helm-stack-hoogle--propertize-decl fundecl))
           (plist-get candidate :url))))
+
 (defun helm-stack-hoogle--get-candidates (query &optional num)
   "returns list of plist"
   (let* ((ncount (or num helm-candidate-number-limit))
